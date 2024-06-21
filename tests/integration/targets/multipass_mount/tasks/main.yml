@@ -11,14 +11,6 @@
     state: absent
     purge: true
 
-- name: Create VM for the test
-  theko2fi.multipass.multipass_vm:
-    name: "{{vm_name}}"
-    state: present
-    cpus: 2
-    memory: '2G'
-    disk: 8G
-
 - name: Ensure that the VM exist for the test
   theko2fi.multipass.multipass_vm:
     name: "{{vm_name}}"

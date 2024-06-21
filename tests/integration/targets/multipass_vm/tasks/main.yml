@@ -12,6 +12,7 @@
     cpus: "{{vm.custom.cpus}}"
     memory: "{{vm.custom.memory}}"
     disk: "{{vm.custom.disk}}"
+    # TODO: implement test network interface in CI to test
     #networks: 
     #- name: "{{vm.custom.networks.net1}}"
   register: create_vm
