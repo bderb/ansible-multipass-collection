@@ -1,22 +1,38 @@
 ---
+- name: Get current user's UID
+  command: id -u
+  register: uid_output
+  changed_when: false
+  check_mode: no
+
+- name: Set fact with UID
+  set_fact:
+    current_user_uid: "{{ uid_output.stdout | int }}"
+
+- name: Create test directory if it does not exist
+  ansible.builtin.file:
+    path: "{{vm.mount_dir}}"
+    state: directory
+    owner: "{{current_user_uid}}"
+    mode: '0755'
 
 - name: Ensure that VM doesn't exist
   theko2fi.multipass.multipass_vm:
-    name: "zobosky"
+    name: "{{vm.name}}"
     state: absent
     purge: true
 
 - name: Ensure that mount source folder exists
   ansible.builtin.file:
-    path: "/root/tmp/testmount2"
+    path: "{{vm.mount_dir}}"
     state: directory
 
 - name: Mount directories to multipass VM
   theko2fi.multipass.multipass_vm:
-    name: "zobosky"
+    name: "{{vm.name}}"
     state: present
     mounts:
-      - source: "/root/tmp/testmount2"
+      - source: "{{vm.mount_dir}}"
         target: "/tmpyy"
         gid_map: ["50:50","500:25"]
         uid_map: ["1000:1000"]
@@ -28,17 +44,17 @@
   ansible.builtin.assert:
     that:
       - create_vm_with_mounts.changed
-      - "'/tmpxx' in create_vm_with_mounts.result.info.zobosky.mounts"
-      - "'/tmpyy' in create_vm_with_mounts.result.info.zobosky.mounts"
-      - create_vm_with_mounts.result.info.zobosky.mounts['/tmpyy'].gid_mappings == ["50:50","500:25"]
-      - create_vm_with_mounts.result.info.zobosky.mounts['/tmpyy'].uid_mappings == ["1000:1000"]
+      - "'/tmpxx' in create_vm_with_mounts.result.info.{{vm.name}}.mounts"
+      - "'/tmpyy' in create_vm_with_mounts.result.info.{{vm.name}}.mounts"
+      - create_vm_with_mounts.result.info.{{vm.name}}.mounts['/tmpyy'].gid_mappings == ["50:50","500:25"]
+      - create_vm_with_mounts.result.info.{{vm.name}}.mounts['/tmpyy'].uid_mappings == ["1000:1000"]
 
 - name: Reduce gid_map
   theko2fi.multipass.multipass_vm:
-    name: "zobosky"
+    name: "{{vm.name}}"
     state: present
     mounts:
-      - source: "/root/tmp/testmount2"
+      - source: "{{vm.mount_dir}}"
         target: "/tmpyy"
         gid_map: ["50:50"]
         uid_map: ["1000:1000"]
@@ -50,14 +66,14 @@
   ansible.builtin.assert:
     that:
       - reduce_gid_map.changed
-      - reduce_gid_map.result.info.zobosky.mounts['/tmpyy'].gid_mappings == ["50:50"]
+      - reduce_gid_map.result.info.{{vm.name}}.mounts['/tmpyy'].gid_mappings == ["50:50"]
 
 - name: Remove uid_map
   theko2fi.multipass.multipass_vm:
-    name: "zobosky"
+    name: "{{vm.name}}"
     state: present
     mounts:
-      - source: "/root/tmp/testmount2"
+      - source: "{{vm.mount_dir}}"
         target: "/tmpyy"
         gid_map: ["50:50"]
       - source: "/tmp"
@@ -68,14 +84,15 @@
   ansible.builtin.assert:
     that:
       - remove_uid_map.changed
-      - remove_uid_map.result.info.zobosky.mounts['/tmpyy'].uid_mappings == ["0:default"]
+      - remove_uid_map.result.info.{{vm.name}}.mounts['/tmpyy'].uid_mappings == ["{{current_user_uid}}:default"]
+      #- remove_uid_map.result.info.{{vm.name}}.mounts['/tmpyy'].uid_mappings == ["0:default"]
 
 - name: change '/tmpxx' mount point to '/tmpzz'
   theko2fi.multipass.multipass_vm:
-    name: "zobosky"
+    name: "{{vm.name}}"
     state: present
     mounts:
-      - source: "/root/tmp/testmount2"
+      - source: "{{vm.mount_dir}}"
         target: "/tmpyy"
         gid_map: ["50:50"]
       - source: "/tmp"
@@ -86,12 +103,12 @@
   ansible.builtin.assert:
     that:
       - change_mount_point.changed
-      - "'/tmpxx' not in change_mount_point.result.info.zobosky.mounts"
-      - change_mount_point.result.info.zobosky.mounts['/tmpzz'].source_path == "/tmp"
+      - "'/tmpxx' not in change_mount_point.result.info.{{vm.name}}.mounts"
+      - change_mount_point.result.info.{{vm.name}}.mounts['/tmpzz'].source_path == "/tmp"
 
 - name: Remove one mount point
   theko2fi.multipass.multipass_vm:
-    name: "zobosky"
+    name: "{{vm.name}}"
     state: present
     mounts:
       - source: "/tmp"
@@ -102,11 +119,11 @@
   ansible.builtin.assert:
     that:
       - remove_one_mount_point.changed
-      - "'/tmpyy' not in remove_one_mount_point.result.info.zobosky.mounts"
+      - "'/tmpyy' not in remove_one_mount_point.result.info.{{vm.name}}.mounts"
 
 - name: Remove one mount point (check idempotency)
   theko2fi.multipass.multipass_vm:
-    name: "zobosky"
+    name: "{{vm.name}}"
     state: present
     mounts:
       - source: "/tmp"
@@ -121,6 +138,11 @@
 
 - name: Delete and purge VM
   theko2fi.multipass.multipass_vm:
-    name: "zobosky"
+    name: "{{vm.name}}"
     state: absent
     purge: true
+
+- name: Recursively remove test directory
+  ansible.builtin.file:
+    path: "{{vm.mount_dir}}"
+    state: absent

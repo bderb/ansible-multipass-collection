@@ -1,22 +1,24 @@
 ---
-- name: Ensure multipass VM named zazilapus doesn't exist
+- name: Ensure multipass VM named {{vm.name}} doesn't exist
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: absent
     purge: true
 
 - name: Create a multipass VM
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: present
-    cpus: 2
-    memory: '2G'
-    disk: 8G
+    cpus: "{{vm.custom.cpus}}"
+    memory: "{{vm.custom.memory}}"
+    disk: "{{vm.custom.disk}}"
+    #networks: 
+    #- name: "{{vm.custom.networks.net1}}"
   register: create_vm
 
 - name: Get the created VM specs
   theko2fi.multipass.multipass_config_get:
-    key: "local.zazilapus.{{item}}"
+    key: "local.{{vm.name}}.{{item}}"
   register: create_vm_config
   with_items:
     - memory
@@ -26,14 +28,14 @@
   ansible.builtin.assert:
     that:
       - create_vm.changed
-      - create_vm.result.info.zazilapus.state == "Running"
-      - create_vm.result.info.zazilapus.cpu_count == "2"
-      - create_vm_config.results[0].result == "2.0GiB"
-      - create_vm_config.results[1].result == "8.0GiB"
+      - create_vm.result.info.{{vm.name}}.state == "Running"
+      - create_vm.result.info.{{vm.name}}.cpu_count == "{{vm.custom.cpus}}"
+      - create_vm_config.results[0].result == "{{vm.custom.memory}}"
+      - create_vm_config.results[1].result == "{{vm.custom.disk}}"
 
 - name: Stop multipass VM
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: stopped
   register: stop_vm
 
@@ -44,7 +46,7 @@
 
 - name: Start a multipass VM which was stopped
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: started
   register: start_vm
 
@@ -52,18 +54,18 @@
   ansible.builtin.assert:
     that:
       - start_vm.changed
-      - start_vm.result.info.zazilapus.state == "Running"
+      - start_vm.result.info.{{vm.name}}.state == "Running"
 
 - name: Recreate the multipass VM
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: present
     recreate: true
   register: recreate_vm
   
 - name: Get the recreated VM specs
   theko2fi.multipass.multipass_config_get:
-    key: "local.zazilapus.{{item}}"
+    key: "local.{{vm.name}}.{{item}}"
   register: recreate_vm_config
   with_items:
     - memory
@@ -73,14 +75,14 @@
   ansible.builtin.assert:
     that:
       - recreate_vm.changed
-      - recreate_vm.result.info.zazilapus.state == "Running"
-      - recreate_vm.result.info.zazilapus.cpu_count == "1"
-      - recreate_vm_config.results[0].result == "1.0GiB"
-      - recreate_vm_config.results[1].result == "5.0GiB"
+      - recreate_vm.result.info.{{vm.name}}.state == "Running"
+      - recreate_vm.result.info.{{vm.name}}.cpu_count == "{{vm.default.cpus}}"
+      - recreate_vm_config.results[0].result == "{{vm.default.memory}}"
+      - recreate_vm_config.results[1].result == "{{vm.default.disk}}"
 
 - name: Delete the multipass VM
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: absent
   register: delete_vm
 
@@ -91,7 +93,7 @@
 
 - name: Try to stop a deleted multipass VM to check idempotency
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: stopped
   register: stop_vm
 
@@ -102,7 +104,7 @@
 
 - name: Start a deleted VM
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: started
   register: started_vm
 
@@ -110,11 +112,11 @@
   ansible.builtin.assert:
     that:
       - started_vm.changed
-      - started_vm.result.info.zazilapus.state == "Running"
+      - started_vm.result.info.{{vm.name}}.state == "Running"
 
 - name: Delete and purge a VM
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: absent
     purge: true
   register: purge_vm
@@ -126,7 +128,7 @@
 
 - name: Delete and purge a VM (check idempotency)
   theko2fi.multipass.multipass_vm:
-    name: "zazilapus"
+    name: "{{vm.name}}"
     state: absent
     purge: true
   register: repurge_vm
