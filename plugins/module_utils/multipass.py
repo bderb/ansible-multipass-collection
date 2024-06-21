@@ -4,12 +4,17 @@ from ansible_collections.theko2fi.multipass.plugins.module_utils.haikunator impo
 import os
 import json
 import time
+import re
 from shlex import split as shlexsplit
 from .errors import SocketError, MountNonExistentError, MountExistsError
 
 def get_existing_mounts(vm_name):
     vm = MultipassClient().get_vm(vm_name)
     return vm.info().get('info').get(vm_name).get("mounts")
+
+def stderr_clean(text):
+    text = re.sub(r'[\n\t]', ' ', text)
+    return text.strip()
 
 # Added decorator to automatically retry on unpredictable module failures
 def retry_on_failure(ExceptionsToCheck, max_retries=5, delay=5, backoff=2):
@@ -120,28 +125,46 @@ class MultipassClient:
     def __init__(self, multipass_cmd="multipass"):
         self.cmd = multipass_cmd
 
-    def launch(self, vm_name=None, cpu=1, disk="5G", mem="1G", image=None, cloud_init=None):
+    def launch(self, vm_name=None, cpu=1, disk="10G", mem="1G", image=None, cloud_init=None, networks=None):
         if(not vm_name):
             # similar to Multipass's VM name generator
             vm_name = Haikunator().haikunate(token_length=0)
         cmd = [self.cmd, "launch", "-c", str(cpu), "-d", disk, "-n", vm_name, "-m", mem]
+        
+        if(networks):
+            for network in networks:
+                cmd.append("--network")
+                network_str = "name={0}".format(network.get("name"))
+                
+                mode = network.get("mode")
+                if not mode:
+                    mode = "auto"
+                network_str += ",mode={0}".format(mode)
+                
+                mac = network.get("mac")
+                if mac:
+                    network_str += ",mac={0}".format(mac)
+
+                cmd.append(network_str)
         if(cloud_init):
             cmd.append("--cloud-init")
             cmd.append(cloud_init)
         if(image and not image == "ubuntu-lts"):
             cmd.append(image)
         try:
-            subprocess.check_output(cmd)
-        except:
-            raise Exception("Error launching Multipass VM {0}".format(vm_name))
+            subprocess.check_output(cmd, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            stderr_cleaned = stderr_clean(e.stderr.decode(encoding="utf-8"))
+            raise Exception("Multipass VM '{0}' launch failed: {1}".format(vm_name, stderr_cleaned))
         return MultipassVM(vm_name, self.cmd)
 
     def transfer(self, src, dest):
         cmd = [self.cmd, "transfer", src, dest]
         try:
-            subprocess.check_output(cmd)
-        except:
-            raise Exception("Multipass transfer command failed.")
+            subprocess.check_output(cmd, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            stderr_cleaned = stderr_clean(e.stderr.decode(encoding="utf-8"))
+            raise Exception("Multipass transfer command failed: {0}".format(stderr_cleaned))
 
     def get_vm(self, vm_name):
         return MultipassVM(vm_name, self.cmd)
@@ -149,9 +172,10 @@ class MultipassClient:
     def purge(self):
         cmd = [self.cmd, "purge"]
         try:
-            subprocess.check_output(cmd)
-        except:
-            raise Exception("Purge command failed.")
+            subprocess.check_output(cmd, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            stderr_cleaned = stderr_clean(e.stderr.decode(encoding="utf-8"))
+            raise Exception("Multipass purge command failed: {0}".format(stderr_cleaned))
 
     def list(self):
         cmd = [self.cmd, "list", "--format", "json"]
@@ -209,16 +233,18 @@ class MultipassClient:
     def recover(self, vm_name):
         cmd = [self.cmd, "recover", vm_name]
         try:
-            subprocess.check_output(cmd)
+            subprocess.check_output(cmd, stderr=subprocess.PIPE)
         except:
-            raise Exception("Multipass recover command failed.")
+            stderr_cleaned = stderr_clean(e.stderr.decode(encoding="utf-8"))
+            raise Exception("Multipass recover command failed: {0}".format(stderr_cleaned))
 
     def suspend(self):
         cmd = [self.cmd, "suspend"]
         try:
-            subprocess.check_output(cmd)
+            subprocess.check_output(cmd, stderr=subprocess.PIPE)
         except:
-            raise Exception("Multipass suspend command failed.")
+            stderr_cleaned = stderr_clean(e.stderr.decode(encoding="utf-8"))
+            raise Exception("Multipass suspend command failed: {0}".format(stderr_cleaned))
 
     def get(self, key):
         cmd = [self.cmd, "get", key]

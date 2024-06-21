@@ -26,8 +26,7 @@ class AnsibleMultipassVM:
             return False
         
     def get_vm_state(self):
-        vm_state = self.vm.info().get("info").get(self.name).get("state")
-        return vm_state
+        return self.vm.info().get("info").get(self.name).get("state")
     
     @property
     def is_vm_deleted(self) -> bool:
@@ -39,8 +38,7 @@ class AnsibleMultipassVM:
     
     @property
     def is_vm_stopped(self) -> bool:
-        vm_state = self.get_vm_state()
-        return vm_state == 'Stopped'
+        return self.get_vm_state == 'Stopped'
 
 def compare_dictionaries(dict1, dict2):
     # Check for keys present in dict1 but not in dict2
@@ -86,7 +84,7 @@ def main():
             image = dict(required=False, type=str, default='ubuntu-lts'),
             cpus = dict(required=False, type=int, default=1),
             memory = dict(required=False, type=str, default='1G'),
-            disk = dict(required=False, type=str, default='5G'),
+            disk = dict(required=False, type=str, default='10G'),
             cloud_init = dict(required=False, type=str, default=None),
             state = dict(required=False, type=str, default='present'),
             recreate = dict(required=False, type=bool, default=False),
@@ -98,6 +96,12 @@ def main():
                 gid_map=dict(type='list', elements='str'),
                 uid_map=dict(type='list', elements='str')
                 )
+            ),
+            networks = dict(type='list', elements='dict', suboptions=dict(
+                name=dict(type='str', required=True),
+                mode=dict(type='str', choices=['auto','manual'], default='auto'),
+                mac=dict(type='str', default='random')
+              )
             )
         )
     )
@@ -111,6 +115,7 @@ def main():
     cloud_init = module.params.get('cloud_init')
     purge = module.params.get('purge')
     mounts = module.params.get('mounts')
+    networks = module.params.get('networks')
 
     ansible_multipass = AnsibleMultipassVM(vm_name)
 
@@ -124,7 +129,8 @@ def main():
                     cpu=cpus,
                     mem=memory,
                     disk=disk,
-                    cloud_init=cloud_init
+                    cloud_init=cloud_init,
+                    networks=networks
                     )
                 changed = True
                 #module.exit_json(changed=True, result=vm.info())
@@ -154,7 +160,8 @@ def main():
                         cpu=cpus,
                         mem=memory,
                         disk=disk,
-                        cloud_init=cloud_init
+                        cloud_init=cloud_init,
+                        networks=networks
                         )
                     changed = True
                     #module.exit_json(changed=True, result=vm.info())
@@ -322,7 +329,37 @@ options:
       - Omitting the unit defaults to bytes.
     required: false
     type: str
-    default: 5G
+    default: 10G
+  networks:
+    type: list
+    elements: dict
+    required: false
+    description:
+      - Specification for networks to be added to the VM.
+      - Omitting a network that is currently applied to a VM will remove it.
+    version_added: 0.3.1
+    suboptions:
+      name:
+        type: str
+        description:
+          - Name of the local host ethernet adapter/bridge to bind.
+        required: true
+      mode:
+        type: str
+        description:
+          - Specify the network mode to use.
+          - V(auto) automatically sets the networking configuration.
+          - V(manual) doesn't configure the network.
+        default: auto
+        choices:
+          - auto
+          - manual
+        required: false
+      mac:
+        type: str
+        description:
+          - MAC address to assign to the adapter.
+        required: false
   cloud_init:
     description: Path or URL to a user-data cloud-init configuration.
     required: false
@@ -372,6 +409,14 @@ EXAMPLES = '''
     cpus: 2
     memory: 2G
     disk: 5G
+
+- name: Create a VM with multiple network interfaces
+  theko2fi.multipass.multipass_vm:
+    name: foo
+    networks:
+    - name: bridge0
+    - name: eth0
+      mode: manual
 
 - name: Stop a VM
   theko2fi.multipass.multipass_vm:
