@@ -1,20 +1,30 @@
 ---
-- name: Ensure that VM doesn't exist
+- name: Get current user's UID
+  command: id -u
+  register: uid_output
+  changed_when: false
+  check_mode: no
+
+- name: Set facts
+  set_fact:
+    mount_source_for_test: "{{ansible_env.HOME}}/foo_bar"
+    current_user_uid: "{{ uid_output.stdout | int }}"
+    vm_name: "zobosky"
+
+- name: Create VM if it doesn't exist
   theko2fi.multipass.multipass_vm:
     name: "zobosky"
     state: absent
     purge: true
 
-- name: Create mount source directory if it does not exist
-  ansible.builtin.file:
-    path: "/root/tmp/testmount2"
-    state: directory
-    owner: "0"
-    mode: "0755"
+- name: Ensure the VM exists for the test
+  theko2fi.multipass.multipass_vm:
+    name: "zobosky"
+    state: present
 
-- name: Ensure that mount source folder exists
+- name: Create '{{ mount_source_for_test }}' directory if it does not exist
   ansible.builtin.file:
-    path: "/root/tmp/testmount2"
+    path: "{{ mount_source_for_test }}"
     state: directory
 
 - name: Mount directories to multipass VM
@@ -22,7 +32,7 @@
     name: "zobosky"
     state: present
     mounts:
-      - source: "/root/tmp/testmount2"
+      - source: "{{ mount_source_for_test }}"
         target: "/tmpyy"
         gid_map: ["50:50","500:25"]
         uid_map: ["1000:1000"]
@@ -44,7 +54,7 @@
     name: "zobosky"
     state: present
     mounts:
-      - source: "/root/tmp/testmount2"
+      - source: "{{ mount_source_for_test }}"
         target: "/tmpyy"
         gid_map: ["50:50"]
         uid_map: ["1000:1000"]
@@ -63,7 +73,7 @@
     name: "zobosky"
     state: present
     mounts:
-      - source: "/root/tmp/testmount2"
+      - source: "{{ mount_source_for_test }}"
         target: "/tmpyy"
         gid_map: ["50:50"]
       - source: "/tmp"
@@ -74,14 +84,14 @@
   ansible.builtin.assert:
     that:
       - remove_uid_map.changed
-      - remove_uid_map.result.info.zobosky.mounts['/tmpyy'].uid_mappings == ["0:default"]
+      - remove_uid_map.result.info.zobosky.mounts['/tmpyy'].uid_mappings == ["%s:default" % (current_user_uid)]
 
 - name: change '/tmpxx' mount point to '/tmpzz'
   theko2fi.multipass.multipass_vm:
     name: "zobosky"
     state: present
     mounts:
-      - source: "/root/tmp/testmount2"
+      - source: "{{ mount_source_for_test }}"
         target: "/tmpyy"
         gid_map: ["50:50"]
       - source: "/tmp"

@@ -336,7 +336,7 @@ options:
     required: false
     description:
       - Specification for networks to be added to the VM.
-      - Omitting a network that is currently applied to a VM will remove it.
+      - NOTE: LXD installed on host required, to use change the local driver in Multipass using the command: 'multipass set local.driver=lxd'.
     version_added: 0.3.1
     suboptions:
       name:
