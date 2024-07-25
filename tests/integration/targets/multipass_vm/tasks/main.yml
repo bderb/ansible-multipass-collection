@@ -1,4 +1,7 @@
 ---
+- name: Setup LXD network
+  ansible.builtin.import_tasks: lxd.yml
+
 - name: Ensure multipass VM named zazilapus doesn't exist
   theko2fi.multipass.multipass_vm:
     name: "zazilapus"
@@ -9,12 +12,12 @@
   theko2fi.multipass.multipass_vm:
     name: "zazilapus"
     state: present
+    image: jammy
     cpus: 2
     memory: '2G'
     disk: 11G
-    # TODO: Needs to be implement with a test interface in runner
-    #networks:
-    #- name: br0
+    networks:
+    - name: testbr0
   register: create_vm
 
 - name: Get the created VM specs
@@ -33,6 +36,7 @@
       - create_vm.result.info.zazilapus.cpu_count == "2"
       - create_vm_config.results[0].result == "2.0GiB"
       - create_vm_config.results[1].result == "11.0GiB"
+      - create_vm.result.info.zazilapus.ipv4[1] is match ('192.168.10.*')
 
 - name: Stop multipass VM
   theko2fi.multipass.multipass_vm:

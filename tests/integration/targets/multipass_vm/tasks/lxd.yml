@@ -1,0 +1,16 @@
+# Used for testing adding network to a multipass vm
+---
+- name: Set LXD as multipass local driver
+  command: multipass set local.driver=lxd
+
+- name: Initialize LXD with preseed
+  shell:
+    cmd: |
+      cat <<EOF | lxd init --preseed
+      networks:
+      - name: testbr0
+        type: bridge
+        config:
+          ipv4.address: 192.168.10.1/24
+          ipv6.address: none
+      EOF
